@@ -1,14 +1,13 @@
 package com.minecolonies.api.blocks;
 
 import com.minecolonies.api.blocks.types.RackType;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 
-public abstract class AbstractBlockMinecoloniesRack<B extends AbstractBlockMinecoloniesRack<B>> extends AbstractBlockMinecolonies<B> implements EntityBlock
+public abstract class AbstractBlockMinecoloniesRack<B extends AbstractBlockMinecoloniesRack<B>> extends AbstractBlockMinecolonies<B> implements EntityBlock, SimpleWaterloggedBlock
 {
     public static final EnumProperty<RackType> VARIANT = EnumProperty.create("variant", RackType.class);
 
@@ -16,6 +15,10 @@ public abstract class AbstractBlockMinecoloniesRack<B extends AbstractBlockMinec
      * The position it faces.
      */
     public static final DirectionProperty      FACING       = HorizontalDirectionalBlock.FACING;
+    /**
+     * Whether the block is waterlogged.
+     */
+    public static final BooleanProperty        WATERLOGGED  = BlockStateProperties.WATERLOGGED;
 
     public AbstractBlockMinecoloniesRack(final Properties properties)
     {

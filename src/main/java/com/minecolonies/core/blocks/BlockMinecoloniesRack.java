@@ -13,6 +13,19 @@ import com.minecolonies.api.util.constant.Constants;
 import com.minecolonies.core.tileentities.TileEntityRack;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
@@ -81,12 +94,26 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
     /**
      * Smaller shape.
      */
-    private static final VoxelShape SHAPE = Shapes.box(0.1, 0.1, 0.1, 0.9, 0.9, 0.9);
+    private static final VoxelShape SHAPE = Shapes.box(0.03125, 0.03125, 0.03125, 0.96875, 1.0, 0.96875);
+    private static final VoxelShape[] DIRECTION_SHAPES = new VoxelShape[]{
+            Shapes.box(0.03125, 0.03125, 0.03125, 0.96875, 1.0, 1.0),
+            Shapes.box(0.0, 0.03125, 0.03125, 0.96875, 1.0, 0.96875),
+            Shapes.box(0.03125, 0.03125, 0.0, 0.96875, 1.0, 0.96875),
+            Shapes.box(0.03125, 0.03125, 0.03125, 1.0, 1.0, 0.96875)
+    };
 
     public BlockMinecoloniesRack()
     {
-        super(Properties.of().mapColor(MapColor.WOOD).sound(SoundType.WOOD).strength(BLOCK_HARDNESS, RESISTANCE));
-        this.registerDefaultState(this.defaultBlockState().setValue(FACING, Direction.NORTH).setValue(VARIANT, RackType.EMPTY));
+        super(Properties.of()
+                .mapColor(MapColor.WOOD)
+                .sound(SoundType.WOOD)
+                .strength(BLOCK_HARDNESS, RESISTANCE)
+                .noOcclusion()
+                .isValidSpawn((state, level, pos, entityType) -> false)
+                .isRedstoneConductor((state, level, pos) -> false)
+                .isSuffocating((state, level, pos) -> false)
+                .isViewBlocking((state, level, pos) -> false));
+        this.registerDefaultState(this.defaultBlockState().setValue(FACING, Direction.NORTH).setValue(VARIANT, RackType.EMPTY).setValue(WATERLOGGED, false));
     }
 
     @Override
@@ -95,35 +122,28 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
         return new ResourceLocation(Constants.MOD_ID, BLOCK_NAME);
     }
 
-    @Override
-    public boolean propagatesSkylightDown(final BlockState state, @NotNull final BlockGetter reader, @NotNull final BlockPos pos)
-    {
-        return true;
-    }
-
     @NotNull
     @Override
     public VoxelShape getShape(final BlockState state, final BlockGetter worldIn, final BlockPos pos, final CollisionContext context)
     {
+        if (state.getValue(VARIANT).isDoubleVariant())
+        {
+            Direction facing = state.getValue(FACING);
+            int index = facing.get2DDataValue();
+            return DIRECTION_SHAPES[index];
+        }
         return SHAPE;
-    }
-
-    @NotNull
-    @Override
-    public VoxelShape getCollisionShape(final BlockState state, final BlockGetter level, final BlockPos pos, final CollisionContext ctx)
-    {
-        return Shapes.block();
     }
 
     @Nullable
     @Override
     public BlockState getStateForPlacement(final BlockPlaceContext context)
     {
-        if (context.getPlayer() != null)
-        {
-            return defaultBlockState().setValue(FACING, context.getPlayer().getDirection().getOpposite());
-        }
-        return super.getStateForPlacement(context);
+        final BlockPos pos = context.getClickedPos();
+        final FluidState fluidstate = context.getLevel().getFluidState(pos);
+        final boolean water = fluidstate.getType() == Fluids.WATER;
+
+        return super.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite()).setValue(WATERLOGGED, water);
     }
 
     /**
@@ -160,6 +180,11 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
       @NotNull final BlockPos pos,
       @NotNull final BlockPos neighbourPos)
     {
+        if (state.getValue(WATERLOGGED))
+        {
+            level.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(level));
+        }
+
         if (state.getBlock() != this || pos.subtract(neighbourPos).getY() != 0)
         {
             return super.updateShape(state, dir, neighbourState, level, pos, neighbourPos);
@@ -214,6 +239,12 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
     }
 
     @Override
+    public FluidState getFluidState(BlockState state)
+    {
+        return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
+    }
+
+    @Override
     public void spawnAfterBreak(final BlockState state, final ServerLevel worldIn, final BlockPos pos, final ItemStack stack, final boolean p_222953_)
     {
         final BlockEntity tileentity = worldIn.getBlockEntity(pos);
@@ -247,7 +278,7 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
                   rack,
                   buf -> buf.writeBlockPos(rack.getBlockPos()).writeBlockPos(rack.getOtherChest() == null ? BlockPos.ZERO : rack.getOtherChest().getBlockPos()));
             }
-            return InteractionResult.SUCCESS;
+            return InteractionResult.sidedSuccess(worldIn.isClientSide);
         }
         return InteractionResult.FAIL;
     }
@@ -255,7 +286,7 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder)
     {
-        builder.add(FACING, VARIANT);
+        builder.add(FACING, VARIANT, WATERLOGGED);
     }
 
     @Nullable
@@ -268,8 +299,8 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
     @Override
     public List<ItemStack> getDrops(final BlockState state, final LootParams.Builder builder)
     {
-        final List<ItemStack> drops = new ArrayList<>();
-        drops.add(new ItemStack(this, 1));
+        final List<ItemStack> drops = new ObjectArrayList<>(1);
+        drops.add(new ItemStack(this));
         return drops;
     }
 
