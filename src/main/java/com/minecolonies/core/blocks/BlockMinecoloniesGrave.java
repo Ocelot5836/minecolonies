@@ -100,13 +100,7 @@ public class BlockMinecoloniesGrave extends AbstractBlockMinecoloniesGrave<Block
     {
         final Level worldIn = context.getLevel();
         final BlockPos pos = context.getClickedPos();
-        final BlockState state = defaultBlockState();
-        final BlockEntity entity = worldIn.getBlockEntity(pos);
-
-        if (!(entity instanceof TileEntityGrave))
-        {
-            return super.getStateForPlacement(context);
-        }
+        final BlockState state = super.getStateForPlacement(context);
 
         return getPlacementState(state, worldIn, pos);
     }
@@ -146,7 +140,7 @@ public class BlockMinecoloniesGrave extends AbstractBlockMinecoloniesGrave<Block
     public static BlockState getPlacementState(final BlockState state, final Level level, final BlockPos pos)
     {
         FluidState fluidState = level.getFluidState(pos);
-        return state.setValue(VARIANT, GraveType.DEFAULT).setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER);
+        return state.setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER);
     }
 
     /**
