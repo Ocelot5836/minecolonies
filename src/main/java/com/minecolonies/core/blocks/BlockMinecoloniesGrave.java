@@ -10,6 +10,7 @@ import com.minecolonies.core.tileentities.TileEntityGrave;
 import com.minecolonies.api.util.InventoryUtils;
 import com.minecolonies.api.util.constant.Constants;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,6 +22,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -64,12 +67,12 @@ public class BlockMinecoloniesGrave extends AbstractBlockMinecoloniesGrave<Block
     /**
      * Smaller shape.
      */
-    private static final VoxelShape SHAPE = Shapes.box(0.1, 0.1, 0.1, 0.9, 0.9, 0.9);
+    private static final VoxelShape SHAPE = Shapes.box(0.0625, 0.0, 0.0625, 0.9375, 0.875, 0.9375);
 
     public BlockMinecoloniesGrave()
     {
         super(Properties.of().mapColor(MapColor.STONE).sound(SoundType.STONE).strength(BLOCK_HARDNESS, RESISTANCE));
-        this.registerDefaultState(this.defaultBlockState().setValue(FACING, Direction.NORTH).setValue(VARIANT, GraveType.DEFAULT));
+        this.registerDefaultState(this.defaultBlockState().setValue(FACING, Direction.NORTH).setValue(VARIANT, GraveType.DEFAULT).setValue(WATERLOGGED, false));
     }
 
     @Override
@@ -105,19 +108,45 @@ public class BlockMinecoloniesGrave extends AbstractBlockMinecoloniesGrave<Block
             return super.getStateForPlacement(context);
         }
 
-        return getPlacementState(state, pos);
+        return getPlacementState(state, worldIn, pos);
+    }
+
+    @Override
+    @NotNull
+    public BlockState updateShape(
+            @NotNull final BlockState state,
+            @NotNull final Direction dir,
+            final BlockState neighbourState,
+            @NotNull final LevelAccessor level,
+            @NotNull final BlockPos pos,
+            @NotNull final BlockPos neighbourPos)
+    {
+        if (state.getValue(WATERLOGGED))
+        {
+            level.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(level));
+        }
+
+        return super.updateShape(state, dir, neighbourState, level, pos, neighbourPos);
+    }
+
+    @Override
+    public FluidState getFluidState(BlockState state)
+    {
+        return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
     }
 
     /**
      * Get the statement ready.
      *
-     * @param state  the state to place.
-     * @param pos    the position.
+     * @param state the state to place.
+     * @param level the level instance.
+     * @param pos   the position.
      * @return the next state.
      */
-    public static BlockState getPlacementState(final BlockState state, final BlockPos pos)
+    public static BlockState getPlacementState(final BlockState state, final Level level, final BlockPos pos)
     {
-        return state.setValue(VARIANT, GraveType.DEFAULT);
+        FluidState fluidState = level.getFluidState(pos);
+        return state.setValue(VARIANT, GraveType.DEFAULT).setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER);
     }
 
     /**
@@ -199,7 +228,7 @@ public class BlockMinecoloniesGrave extends AbstractBlockMinecoloniesGrave<Block
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder)
     {
-        builder.add(FACING, VARIANT);
+        builder.add(FACING, VARIANT, WATERLOGGED);
     }
 
     @Nullable

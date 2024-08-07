@@ -140,10 +140,9 @@ public class BlockMinecoloniesRack extends AbstractBlockMinecoloniesRack<BlockMi
     public BlockState getStateForPlacement(final BlockPlaceContext context)
     {
         final BlockPos pos = context.getClickedPos();
-        final FluidState fluidstate = context.getLevel().getFluidState(pos);
-        final boolean water = fluidstate.getType() == Fluids.WATER;
+        final FluidState fluidState = context.getLevel().getFluidState(pos);
 
-        return super.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite()).setValue(WATERLOGGED, water);
+        return super.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite()).setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER);
     }
 
     /**
